@@ -18,6 +18,35 @@ module AirBlade
       }
       cattr_accessor :default_options
 
+      # useful for setting {:readonly => true} for all the fields in a form
+      # see http://tomayko.com/writings/administrative-debris
+      class_inheritable_accessor :field_defaults
+      def self.with_field_defaults( field_defaults = {})
+        Class.new( self ) do # construct a subclass
+          self.field_defaults = field_defaults
+          # cuz Rails' render_partial's gonna use this to find default form
+          # when you do something like: render :partial => f (for some builder f)
+          def self.to_s; 'FormBuilder'; end
+
+          # Beefs up the appropriate field helpers.
+          %w( text_field text_area password_field file_field
+              date_select time_select country_select ).each do |name|
+            create_field_helper name
+          end
+
+          # Beefs up the appropriate field helpers.
+          %w( check_box radio_button ).each do |name|
+            create_short_field_helper name
+          end
+
+          # Beefs up the appropriate field helpers.
+          %w( select ).each do |name|
+            create_collection_field_helper name
+          end
+
+        end
+      end
+
       # Per-form configuration (overrides app-wide form configuration).
       # E.g. in a form itself:
       #
@@ -92,7 +121,8 @@ module AirBlade
       # for deleting the field.
       def self.create_field_helper(field_helper)
         src = <<-END
-          def #{field_helper}(method, options = {}, html_options = {})
+          def #{field_helper}(method, options, html_options = {})
+            (options||{}).reverse_merge!( #{field_defaults.inspect} || {})
             @template.content_tag('p',
                                   label_element(method, options, html_options) +
                                     super(method, options) +
@@ -107,7 +137,8 @@ module AirBlade
 
       def self.create_short_field_helper(field_helper)
         src = <<-END
-          def #{field_helper}(method, options = {}, html_options = {})
+          def #{field_helper}(method, options, html_options = {})
+            (options||{}).reverse_merge!( #{field_defaults.inspect} || {})
             @template.content_tag('p',
                                   super(method, options) +
                                     label_element(method, options, html_options) +
@@ -136,7 +167,8 @@ module AirBlade
       # TODO: DRY this with self.create_field_helper above.
       def self.create_collection_field_helper(field_helper)
         src = <<-END
-          def #{field_helper}(method, choices, options = {}, html_options = {})
+          def #{field_helper}(method, choices, options, html_options = {})
+            (options||{}).reverse_merge!( #{field_defaults.inspect} || {} )
             @template.content_tag('p',
                                   label_element(method, options, html_options) +
                                     super(method, choices, options) +
@@ -174,23 +206,6 @@ module AirBlade
         when 'country_select'; 'select'
         else ''
         end
-      end
-
-
-      # Beefs up the appropriate field helpers.
-      %w( text_field text_area password_field file_field
-          date_select time_select country_select ).each do |name|
-        create_field_helper name
-      end
-
-      # Beefs up the appropriate field helpers.
-      %w( check_box radio_button ).each do |name|
-        create_short_field_helper name
-      end
-
-      # Beefs up the appropriate field helpers.
-      %w( select ).each do |name|
-        create_collection_field_helper name
       end
 
       # Support for GeoTools.
@@ -339,7 +354,6 @@ module AirBlade
       end
       
       def mandatory?(method, override = nil)
-        debugger
         return override unless override.nil?
         # Leverage vendor/validation_reflection.rb
         if @object.class.respond_to? :reflect_on_validations_for
