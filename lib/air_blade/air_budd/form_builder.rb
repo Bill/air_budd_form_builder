@@ -18,7 +18,9 @@ module AirBlade
       }
       cattr_accessor :default_options
 
-      # useful for setting {:readonly => true} for all the fields in a form
+      # Useful for setting {:readonly => true} for all the fields in a form.
+      # Also you can set the special variable :no_controls => true to render divs
+      # instead of controls in the form.
       # see http://tomayko.com/writings/administrative-debris
       class_inheritable_accessor :field_defaults
       def self.with_field_defaults( field_defaults = {})
@@ -123,13 +125,19 @@ module AirBlade
         src = <<-END
           def #{field_helper}(method, options, html_options = {})
             (options||{}).reverse_merge!( #{field_defaults.inspect} || {})
+            content = if options.delete(:no_controls)
+              opts = options.stringify_keys
+              ActionView::Helpers::InstanceTag.new( @object.class.name.downcase, method, self, nil, options[:object]).send( :add_default_name_and_id, opts )
+              @template.content_tag( 'div', @object.send( method), :id => opts['id'] )
+            else
+              super(method, options)
+            end
             @template.content_tag('p',
                                   label_element(method, options, html_options) +
-                                    super(method, options) +
-                                    addendum_element(options) +
-                                    hint_element(options),
-                                  attributes_for(method, '#{field_helper}')
-            )
+                                  content +
+                                  addendum_element(options) +
+                                  hint_element(options),
+                                  attributes_for(method, '#{field_helper}') )
           end
         END
         class_eval src, __FILE__, __LINE__
@@ -139,10 +147,17 @@ module AirBlade
         src = <<-END
           def #{field_helper}(method, options, html_options = {})
             (options||{}).reverse_merge!( #{field_defaults.inspect} || {})
+            content = if options.delete(:no_controls)
+              opts = options.stringify_keys
+              ActionView::Helpers::InstanceTag.new( @object.class.name.downcase, method, self, nil, options[:object]).send( :add_default_name_and_id, opts )
+              @template.content_tag( 'span', @object.send( method), :id => opts['id'] )
+            else
+              super(method, options)
+            end
             @template.content_tag('p',
-                                  super(method, options) +
-                                    label_element(method, options, html_options) +
-                                    hint_element(options),
+                                  content +
+                                  label_element(method, options, html_options) +
+                                  hint_element(options),
                                   attributes_for(method, '#{field_helper}')
             )
           end
