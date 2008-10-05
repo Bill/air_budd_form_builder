@@ -97,6 +97,15 @@ module AirBlade
 
       protected
 
+      # Tag around content
+      def self.content_tag_for( field_helper)
+        case field_helper
+        when 'text_area': 'div' # in general these contain markup so we need divs
+        else
+          'span'
+        end
+      end
+
       def method_missing(*args, &block)
         if args.first.to_s =~ /^(new|save|cancel|edit|delete)$/
           button args.shift, *args, &block
@@ -131,39 +140,8 @@ module AirBlade
         end
       end
 
-      # We make copies (by aliasing) of ActionView::Helpers::FormBuilder's
-      # vanilla text_field and select methods, so we can use them in our
-      # latitude_field and longitude_field methods.
-      #
-      # NOTE: these alias_methods must come before we override the text_field
-      # and select methods.
-      #
-      # NOTE: this could be implemented more safely using Ara T Howard's technique,
-      # described here:
-      #
-      #   http://blog.airbladesoftware.com/2008/1/17/note-to-self-overriding-a-method-with-a-mixin
-      #
-      # See also the techniques described by Jay Fields here:
-      #
-      #   http://blog.jayfields.com/2008/04/alternatives-for-redefining-methods.html
-      alias_method :vanilla_text_field,   :text_field
-      alias_method :vanilla_hidden_field, :hidden_field
-      alias_method :vanilla_select,       :select
-
       def attributes_for(method, field_helper)
         {:class => data_type_for(field_helper)} unless data_type_for(field_helper).blank?
-      end
-
-      def read_only_text_field(method_for_text_field, method_for_hidden_field = nil, options = {}, html_options = {})
-        method_for_hidden_field ||= method_for_text_field
-        @template.content_tag('p',
-                              label_element(method_for_text_field, options, html_options) +
-                              vanilla_hidden_field(method_for_hidden_field, options) +
-                              @template.content_tag('span', object.send(method_for_text_field)) +
-                              addendum_element(options) +
-                              hint_element(options),
-                              attributes_for(method_for_text_field, 'text_field')
-        )
       end
 
       # Writes out a <label/> element for the given field.
@@ -223,21 +201,12 @@ module AirBlade
 
       protected
 
-      # Tag around content
-      def self.content_tag_for( field_helper)
-        case field_helper
-        when 'text_area': 'div' # in general these contain markup so we need divs
-        else
-          'span'
-        end
-      end
-
       def self.create_field_helper(field_helper)
         src = <<-END
           def #{field_helper}(method, options, html_options = {})
             opts = options.stringify_keys
             ActionView::Helpers::InstanceTag.new( @object.class.name.downcase, method, self, nil, options[:object]).send( :add_default_name_and_id, opts )
-            content = @template.content_tag( #{content_tag_for( field_helper).inspect}, @object.send( method), :id => opts['id'] )
+            content = @template.content_tag( #{content_tag_for( field_helper).inspect}, @object.send( method), :id => opts['id'], :class => 'value' )
             @template.content_tag( #{container_tag_for( field_helper).inspect},
                                   label_element(method, options, html_options) +
                                   content,
@@ -252,7 +221,7 @@ module AirBlade
           def #{field_helper}(method, options, html_options = {})
             opts = options.stringify_keys
             ActionView::Helpers::InstanceTag.new( @object.class.name.downcase, method, self, nil, options[:object]).send( :add_default_name_and_id, opts )
-            content = @template.content_tag( #{content_tag_for( field_helper).inspect}, @object.send( method), :id => opts['id'] )
+            content = @template.content_tag( #{content_tag_for( field_helper).inspect}, @object.send( method), :id => opts['id'], :class => 'value' )
             @template.content_tag( #{container_tag_for( field_helper).inspect},
                                   content +
                                   label_element(method, options, html_options),
@@ -266,9 +235,12 @@ module AirBlade
       def self.create_collection_field_helper(field_helper)
         src = <<-END
           def #{field_helper}(method, choices, options, html_options = {})
+            opts = options.stringify_keys
+            ActionView::Helpers::InstanceTag.new( @object.class.name.downcase, method, self, nil, options[:object]).send( :add_default_name_and_id, opts )
+            content = @template.content_tag( #{content_tag_for( field_helper).inspect}, link_to( method, @object.send(method.to_sym) ), :id => opts['id'], :class => 'value' )
             @template.content_tag( #{container_tag_for( field_helper).inspect},
                                   label_element(method, options, html_options) +
-                                  link_to( method, @object.send(method.to_sym) ),
+                                  content,
                                   attributes_for(method, '#{field_helper}')
             )
           end
@@ -332,6 +304,17 @@ module AirBlade
         class_eval src, __FILE__, __LINE__
       end
       
+      def read_only_text_field(method_for_text_field, method_for_hidden_field = nil, options = {}, html_options = {})
+        method_for_hidden_field ||= method_for_text_field
+        @template.content_tag('p',
+                              label_element(method_for_text_field, options, html_options) +
+                              hidden_field(method_for_hidden_field, options) +
+                              @template.content_tag('span', object.send(method_for_text_field)) +
+                              addendum_element(options) +
+                              hint_element(options),
+                              attributes_for(method_for_text_field, 'text_field')
+        )
+      end
 
       # Support for GeoTools.
       # http://opensource.airbladesoftware.com/trunk/plugins/geo_tools/
@@ -405,9 +388,10 @@ module AirBlade
       def self.create_field_helper(field_helper)
         src = <<-END
           def #{field_helper}(method, options, html_options = {})
+            content = @template.content_tag( #{content_tag_for( field_helper).inspect}, super(method, options), :class => 'value')
             @template.content_tag( #{container_tag_for( field_helper).inspect},
                                   label_element(method, options, html_options) +
-                                  super(method, options) +
+                                  content +
                                   addendum_element(options) +
                                   hint_element(options),
                                   attributes_for(method, '#{field_helper}') )
@@ -419,8 +403,9 @@ module AirBlade
       def self.create_short_field_helper(field_helper)
         src = <<-END
           def #{field_helper}(method, options, html_options = {})
+            content = @template.content_tag( #{content_tag_for( field_helper).inspect}, super(method, options), :class => 'value')
             @template.content_tag( #{container_tag_for( field_helper).inspect},
-                                  super(method, options) +
+                                  content +
                                   label_element(method, options, html_options) +
                                   hint_element(options),
                                   attributes_for(method, '#{field_helper}')
@@ -434,9 +419,10 @@ module AirBlade
       def self.create_collection_field_helper(field_helper)
         src = <<-END
           def #{field_helper}(method, choices, options, html_options = {})
+            content = @template.content_tag( #{content_tag_for( field_helper).inspect}, super(method, choices, options), :class => 'value')
             @template.content_tag( #{container_tag_for( field_helper).inspect},
                                   label_element(method, options, html_options) +
-                                  super(method, choices, options) +
+                                  content +
                                   addendum_element(options) +
                                   hint_element(options),
                                   attributes_for(method, '#{field_helper}')
@@ -503,6 +489,9 @@ module AirBlade
       def errors_for?(method)
         @object && @object.errors[method]
       end
+
+      alias_method :vanilla_text_field,   :text_field
+      alias_method :vanilla_select,       :select
 
     end
   end
