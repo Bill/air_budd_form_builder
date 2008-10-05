@@ -3,25 +3,19 @@ module AirBlade
     module FormHelper
 
       def airbudd_form_for(record_or_name_or_array, *args, &proc)
-        x_form_for( false, record_or_name_or_array, *args, &proc)
+        x_form_for( false, record_or_name_or_array, *args, &proc )
       end
 
       def airbudd_remote_form_for(record_or_name_or_array, *args, &proc)
-        x_form_for( true, record_or_name_or_array, *args, &proc)
+        x_form_for( true, record_or_name_or_array, *args, &proc )
       end
 
       def airbudd_fields_for(record_or_name_or_array, *args, &proc)
-        options = args.detect { |argument| argument.is_a?(Hash) }
-        builder = ( options.delete(:no_controls) ? 
-          AirBlade::AirBudd::DivBuilder : AirBlade::AirBudd::FormBuilder )
-        if options.nil?
-          options = {:builder => builder}
-          args << options
-        end
-        options[:builder] = builder unless options.nil?
-        # notice: plain old Rails fields_for works fine here since we spec'd the builder and fields_for
-        # doesn't spit out table tags (like form_for does)
-        super
+        # Ugh. Ruby won't let us pass two blocks. One must be a Proc, hence the lambda here.
+        with_fields_for_options( lambda { | no_controls, record_or_name_or_array, args, original_callers_proc |
+            # careful! don't call super with our original arguments (call w/ modified ones)
+            super record_or_name_or_array, *args, &original_callers_proc.binding
+        }, record_or_name_or_array, args, Proc.new( &proc ) )
       end
 
       # Displays a link visually consistent with AirBudd form links.
@@ -53,6 +47,16 @@ module AirBlade
       protected
       
       def x_form_for( is_remote, record_or_name_or_array, *args, &proc)
+        # can't call a method w/ two blocks--one's gotta be a Proc
+        with_fields_for_options( lambda{ | no_controls, record_or_name_or_array, args, original_callers_proc |
+          wrapper( no_controls, is_remote, record_or_name_or_array, *args, &original_callers_proc.binding)
+        }, record_or_name_or_array, args, Proc.new( &proc ) )
+      end
+      
+      # Options processing for form_for, fields_for etc. is complicated. This method
+      # isolates those complications. NB we take a two proc parameters. direct_callers_proc
+      # is from the direct caller and original_callers_proc is from the original caller
+      def with_fields_for_options( direct_callers_proc, record_or_name_or_array, args, original_callers_proc)
         options = args.detect { |argument| argument.is_a?(Hash) }
         no_controls = options.delete(:no_controls)
         builder = ( no_controls ? AirBlade::AirBudd::DivBuilder : AirBlade::AirBudd::FormBuilder )
@@ -61,7 +65,7 @@ module AirBlade
           args << options
         end
         options[:builder] = builder unless options.nil?
-        wrapper( no_controls, is_remote, record_or_name_or_array, *args, &proc)
+        direct_callers_proc.call no_controls, record_or_name_or_array, args, original_callers_proc
       end
       
       # Guts copied from Rails 2.1.0 form_for. 
