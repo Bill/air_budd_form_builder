@@ -3,27 +3,11 @@ module AirBlade
     module FormHelper
 
       def airbudd_form_for(record_or_name_or_array, *args, &proc)
-        options = args.detect { |argument| argument.is_a?(Hash) }
-        no_controls = options.delete(:no_controls)
-        builder = ( no_controls ? AirBlade::AirBudd::DivBuilder : AirBlade::AirBudd::FormBuilder )
-        if options.nil?
-          options = {:builder => builder}
-          args << options
-        end
-        options[:builder] = builder unless options.nil?
-        wrapper( no_controls, false, record_or_name_or_array, *args, &proc)
+        x_form_for( false, record_or_name_or_array, *args, &proc)
       end
 
       def airbudd_remote_form_for(record_or_name_or_array, *args, &proc)
-        options = args.detect { |argument| argument.is_a?(Hash) }
-        no_controls = options.delete(:no_controls)
-        builder = ( no_controls ? AirBlade::AirBudd::DivBuilder : AirBlade::AirBudd::FormBuilder )
-        if options.nil?
-          options = {:builder => builder}
-          args << options
-        end
-        options[:builder] = builder unless options.nil?
-        wrapper( no_controls, true, record_or_name_or_array, *args, &proc)
+        x_form_for( true, record_or_name_or_array, *args, &proc)
       end
 
       def airbudd_fields_for(record_or_name_or_array, *args, &proc)
@@ -68,10 +52,22 @@ module AirBlade
       
       protected
       
+      def x_form_for( is_remote, record_or_name_or_array, *args, &proc)
+        options = args.detect { |argument| argument.is_a?(Hash) }
+        no_controls = options.delete(:no_controls)
+        builder = ( no_controls ? AirBlade::AirBudd::DivBuilder : AirBlade::AirBudd::FormBuilder )
+        if options.nil?
+          options = {:builder => builder}
+          args << options
+        end
+        options[:builder] = builder unless options.nil?
+        wrapper( no_controls, is_remote, record_or_name_or_array, *args, &proc)
+      end
+      
       # Guts copied from Rails 2.1.0 form_for. 
       # The purpose of this method is to let us wrap the content in a div and
       # to also make form tag optional
-      def wrapper( no_controls, remote, record_or_name_or_array, *args, &proc)
+      def wrapper( no_controls, is_remote, record_or_name_or_array, *args, &proc)
         raise ArgumentError, "Missing block" unless block_given?
 
         options = args.extract_options!
@@ -91,16 +87,16 @@ module AirBlade
           args.unshift object
         end
 
-        wrapper_start( no_controls, remote, options, object_name, &proc)
+        wrapper_start( no_controls, is_remote, options, object_name, &proc)
         fields_for(object_name, *(args << options), &proc)
         wrapper_end( no_controls, &proc)
       end
 
-      def wrapper_start( no_controls, remote, options, object_name, &proc)
+      def wrapper_start( no_controls, is_remote, options, object_name, &proc)
         concat("<div class='#{object_name}'>", proc.binding)
         url, html = options.delete(:url), options.delete(:html)
         unless no_controls
-          if remote
+          if is_remote
             concat( form_remote_tag(options), proc.binding) # see Rails prototype_helper.rb
           else
             concat( form_tag(url || {}, html || {}), proc.binding) # see Rails form_helper.rb
