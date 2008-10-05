@@ -1,260 +1,29 @@
 module AirBlade
   module AirBudd
 
-    class FormBuilder < ActionView::Helpers::FormBuilder
+    class BaseBuilder < ActionView::Helpers::FormBuilder
       include Haml::Helpers if defined? Haml       # for compatibility
       include ActionView::Helpers::TextHelper      # so we can use concat
       include ActionView::Helpers::CaptureHelper   # so we can use capture
 
+
+      # Rails' render_partial calls this (to_s) to find default form
+      # when you do something like: render :partial => f (for some builder f)
+      # By defining this as an unchanging value for this class and subclasses
+      # we enable reuse of templates between form rendering and div rendering.
+      def self.to_s
+        'FormBuilder'
+      end
+      
       # App-wide form configuration.
       # E.g. in config/initializers/form_builder.rb:
       #
       #   AirBlade::AirBudd::FormBuilder.default_options[:required_signifier] = '*'
       #
-      @@default_options = {
-        :required_signifier => '(required)',
-        :label_suffix => ':',
-        :capitalize_errors => true,
-      }
-      cattr_accessor :default_options
+      class_inheritable_reader :default_options
+      class_inheritable_hash_writer :default_options, :instance_writer => false
 
-      # Useful for setting {:readonly => true} for all the fields in a form.
-      # Also you can set the special variable :no_controls => true to render divs
-      # instead of controls in the form.
-      # see http://tomayko.com/writings/administrative-debris
-      class_inheritable_accessor :field_defaults
-      def self.with_field_defaults( field_defaults = {})
-        Class.new( self ) do # construct a subclass
-          self.field_defaults = field_defaults
-          # cuz Rails' render_partial's gonna use this to find default form
-          # when you do something like: render :partial => f (for some builder f)
-          def self.to_s; 'FormBuilder'; end
-
-          # Beefs up the appropriate field helpers.
-          %w( text_field text_area password_field file_field
-              date_select time_select country_select ).each do |name|
-            create_field_helper name
-          end
-
-          # Beefs up the appropriate field helpers.
-          %w( check_box radio_button ).each do |name|
-            create_short_field_helper name
-          end
-
-          # Beefs up the appropriate field helpers.
-          %w( select ).each do |name|
-            create_collection_field_helper name
-          end
-
-        end
-      end
-
-      # Per-form configuration (overrides app-wide form configuration).
-      # E.g. in a form itself:
-      #
-      #   - airbudd_form_for @member do |f|
-      #     - f.required_signifier = '*'
-      #     = f.text_field :name
-      #     ...etc...
-      #
-      attr_writer *default_options.keys
-      default_options.keys.each do |field|
-        src = <<-END_SRC
-          def #{field}
-            @#{field} || default_options[:#{field}]
-          end
-        END_SRC
-        class_eval src, __FILE__, __LINE__
-      end
-
-      # We make copies (by aliasing) of ActionView::Helpers::FormBuilder's
-      # vanilla text_field and select methods, so we can use them in our
-      # latitude_field and longitude_field methods.
-      #
-      # NOTE: these alias_methods must come before we override the text_field
-      # and select methods.
-      #
-      # NOTE: this could be implemented more safely using Ara T Howard's technique,
-      # described here:
-      #
-      #   http://blog.airbladesoftware.com/2008/1/17/note-to-self-overriding-a-method-with-a-mixin
-      #
-      # See also the techniques described by Jay Fields here:
-      #
-      #   http://blog.jayfields.com/2008/04/alternatives-for-redefining-methods.html
-      alias_method :vanilla_text_field,   :text_field
-      alias_method :vanilla_hidden_field, :hidden_field
-      alias_method :vanilla_select,       :select
-
-      # Creates a glorified form field helper.  It takes a form helper's usual
-      # arguments with an optional options hash:
-      #
-      # <%= form.text_field 'title',
-      #                     :required => true,
-      #                     :label    => "Article's Title",
-      #                     :hint     => "Try not to use the letter 'e'." %>
-      #
-      # The code above generates the following HTML.  The :required entry in the hash
-      # triggers the <em/> element and the :label overwrites the default field label,
-      # 'title' in this case, with its value.  The stanza is wrapped in a <p/> element.
-      #
-      # <p class="text">
-      #   <label for="article_title">Article's Title:
-      #     <em class="required">(required)</em>
-      #   </label>
-      #   <input id="article_title" name="article[title]" type="text" value=""/>
-      #   <span class="hint">Try not to use the letter 'e'.</span>
-      # </p>
-      #
-      # If the field's value is invalid, the <p/> is marked so and a <span/> is added
-      # with the (in)validation message:
-      #
-      # <p class="error text">
-      #   <label for="article_title">Article's Title:
-      #     <em class="required">(required)</em>
-      #     <span class="feedback">can't be blank</span>
-      #   </label>
-      #   <input id="article_title" name="article[title]" type="text" value=""/>
-      #   <span class="hint">Try not to use the letter 'e'.</span>
-      # </p>
-      #
-      # You can also pass an :addendum option.  This generates a <span/> between the
-      # <input/> and the hint.  Typically you would use this to show a small icon
-      # for deleting the field.
-      def self.create_field_helper(field_helper)
-        src = <<-END
-          def #{field_helper}(method, options, html_options = {})
-            (options||{}).reverse_merge!( #{field_defaults.inspect} || {})
-            content = if options.delete(:no_controls)
-              opts = options.stringify_keys
-              ActionView::Helpers::InstanceTag.new( @object.class.name.downcase, method, self, nil, options[:object]).send( :add_default_name_and_id, opts )
-              @template.content_tag( 'div', @object.send( method), :id => opts['id'] )
-            else
-              super(method, options)
-            end
-            @template.content_tag('p',
-                                  label_element(method, options, html_options) +
-                                  content +
-                                  addendum_element(options) +
-                                  hint_element(options),
-                                  attributes_for(method, '#{field_helper}') )
-          end
-        END
-        class_eval src, __FILE__, __LINE__
-      end
-
-      def self.create_short_field_helper(field_helper)
-        src = <<-END
-          def #{field_helper}(method, options, html_options = {})
-            (options||{}).reverse_merge!( #{field_defaults.inspect} || {})
-            content = if options.delete(:no_controls)
-              opts = options.stringify_keys
-              ActionView::Helpers::InstanceTag.new( @object.class.name.downcase, method, self, nil, options[:object]).send( :add_default_name_and_id, opts )
-              @template.content_tag( 'span', @object.send( method), :id => opts['id'] )
-            else
-              super(method, options)
-            end
-            @template.content_tag('p',
-                                  content +
-                                  label_element(method, options, html_options) +
-                                  hint_element(options),
-                                  attributes_for(method, '#{field_helper}')
-            )
-          end
-        END
-        class_eval src, __FILE__, __LINE__
-      end
-
-      # Creates a hidden input field and a simple <span/> using the same
-      # pattern as other form fields.
-      def read_only_text_field(method_for_text_field, method_for_hidden_field = nil, options = {}, html_options = {})
-        method_for_hidden_field ||= method_for_text_field
-        @template.content_tag('p',
-                              label_element(method_for_text_field, options, html_options) +
-                                vanilla_hidden_field(method_for_hidden_field, options) +
-                                @template.content_tag('span', object.send(method_for_text_field)) +
-                                addendum_element(options) +
-                                hint_element(options),
-                              attributes_for(method_for_text_field, 'text_field')
-        )
-      end
-
-      # TODO: DRY this with self.create_field_helper above.
-      def self.create_collection_field_helper(field_helper)
-        src = <<-END
-          def #{field_helper}(method, choices, options, html_options = {})
-            (options||{}).reverse_merge!( #{field_defaults.inspect} || {} )
-            @template.content_tag('p',
-                                  label_element(method, options, html_options) +
-                                    super(method, choices, options) +
-                                    addendum_element(options) +
-                                    hint_element(options),
-                                  attributes_for(method, '#{field_helper}')
-            )
-          end
-        END
-        class_eval src, __FILE__, __LINE__
-      end
-
-      def attributes_for(method, field_helper)
-        # FIXME: there must be a neater way than below.  This is Ruby, after all.
-        ary = []
-        ary << 'error' if errors_for?(method)
-        ary << input_type_for(field_helper) unless input_type_for(field_helper).blank?
-        attrs = {}
-        attrs[:class] = ary.reject{ |x| x.blank? }.join(' ') unless ary.empty?
-        attrs
-      end
-
-      def input_type_for(field_helper)
-        case field_helper
-        when 'text_field';     'text'
-        when 'text_area';      'text'
-        when 'password_field'; 'password'
-        when 'file_field';     'file'
-        when 'hidden_field';   'hidden'
-        when 'check_box';      'checkbox'
-        when 'radio_button';   'radio'
-        when 'select';         'select'
-        when 'date_select';    'select'
-        when 'time_select';    'select'
-        when 'country_select'; 'select'
-        else ''
-        end
-      end
-
-      # Support for GeoTools.
-      # http://opensource.airbladesoftware.com/trunk/plugins/geo_tools/
-      def latitude_field(method, options = {}, html_options = {})
-        @template.content_tag('p',
-          label_element(method, options, html_options) + (
-              vanilla_text_field("#{method}_degrees",       options.merge(:maxlength => 2)) + '&deg;'   +
-              vanilla_text_field("#{method}_minutes",       options.merge(:maxlength => 2)) + '.'       +
-              vanilla_text_field("#{method}_milli_minutes", options.merge(:maxlength => 3)) + '&prime;' +
-              # Hmm, we pass the options in the html_options position.
-              vanilla_select("#{method}_hemisphere", %w( N S ), {}, options)
-            ) +
-            hint_element(options),
-          (errors_for?(method) ? {:class => 'error'} : {})
-        )
-      end
-
-      # Support for GeoTools.
-      # http://opensource.airbladesoftware.com/trunk/plugins/geo_tools/
-      def longitude_field(method, options = {}, html_options = {})
-        @template.content_tag('p',
-          label_element(method, options, html_options) + (
-              vanilla_text_field("#{method}_degrees",       options.merge(:maxlength => 3)) + '&deg;'   +
-              vanilla_text_field("#{method}_minutes",       options.merge(:maxlength => 2)) + '.'       +
-              vanilla_text_field("#{method}_milli_minutes", options.merge(:maxlength => 3)) + '&prime;' +
-              # Hmm, we pass the options in the html_options position.
-              vanilla_select("#{method}_hemisphere", %w( E W ), {}, options)
-            ) +
-            hint_element(options),
-          (errors_for?(method) ? {:class => 'error'} : {})
-        )
-      end
-      
+      self.default_options = { :label_suffix => ':'}
 
       # Within the form's block you can get good buttons with:
       #
@@ -326,6 +95,8 @@ module AirBlade
                               html_options)
       end
 
+      protected
+
       def method_missing(*args, &block)
         if args.first.to_s =~ /^(new|save|cancel|edit|delete)$/
           button args.shift, *args, &block
@@ -333,8 +104,67 @@ module AirBlade
           super
         end
       end
+      
+      # Tag around label + content
+      def self.container_tag_for( field_helper)
+        case field_helper
+        when 'text_area': 'div' # content tag will be div so this can't be p
+        else
+          'p'
+        end
+      end
 
-      private
+      def data_type_for(field_helper)
+        case field_helper
+        when 'text_field';     'text'
+        when 'text_area';      'text'
+        when 'password_field'; 'password'
+        when 'file_field';     'file'
+        when 'hidden_field';   'hidden'
+        when 'check_box';      'checkbox'
+        when 'radio_button';   'radio'
+        when 'select';         'select'
+        when 'date_select';    'select date'
+        when 'time_select';    'select time'
+        when 'country_select'; 'select country'
+        else ''
+        end
+      end
+
+      # We make copies (by aliasing) of ActionView::Helpers::FormBuilder's
+      # vanilla text_field and select methods, so we can use them in our
+      # latitude_field and longitude_field methods.
+      #
+      # NOTE: these alias_methods must come before we override the text_field
+      # and select methods.
+      #
+      # NOTE: this could be implemented more safely using Ara T Howard's technique,
+      # described here:
+      #
+      #   http://blog.airbladesoftware.com/2008/1/17/note-to-self-overriding-a-method-with-a-mixin
+      #
+      # See also the techniques described by Jay Fields here:
+      #
+      #   http://blog.jayfields.com/2008/04/alternatives-for-redefining-methods.html
+      alias_method :vanilla_text_field,   :text_field
+      alias_method :vanilla_hidden_field, :hidden_field
+      alias_method :vanilla_select,       :select
+
+      def attributes_for(method, field_helper)
+        {:class => data_type_for(field_helper)} unless data_type_for(field_helper).blank?
+      end
+
+      def read_only_text_field(method_for_text_field, method_for_hidden_field = nil, options = {}, html_options = {})
+        method_for_hidden_field ||= method_for_text_field
+        @template.content_tag('p',
+                              label_element(method_for_text_field, options, html_options) +
+                              vanilla_hidden_field(method_for_hidden_field, options) +
+                              @template.content_tag('span', object.send(method_for_text_field)) +
+                              addendum_element(options) +
+                              hint_element(options),
+                              attributes_for(method_for_text_field, 'text_field')
+        )
+      end
 
       # Writes out a <label/> element for the given field.
       # Options:
@@ -368,6 +198,276 @@ module AirBlade
         @template.content_tag :label, value, html_options
       end
       
+    end # BaseBuilder
+    
+    # This is the builder used when :no_controls => true
+    class DivBuilder < BaseBuilder
+
+      # Per-form configuration (overrides app-wide form configuration).
+      # E.g. in a form itself:
+      #
+      #   - airbudd_form_for @member do |f|
+      #     - f.required_signifier = '*'
+      #     = f.text_field :name
+      #     ...etc...
+      #
+      attr_writer *default_options.keys
+      default_options.keys.each do |field|
+        src = <<-END_SRC
+          def #{field}
+            @#{field} || default_options[:#{field}]
+          end
+        END_SRC
+        class_eval src, __FILE__, __LINE__
+      end
+
+      protected
+
+      # Tag around content
+      def self.content_tag_for( field_helper)
+        case field_helper
+        when 'text_area': 'div' # in general these contain markup so we need divs
+        else
+          'span'
+        end
+      end
+
+      def self.create_field_helper(field_helper)
+        src = <<-END
+          def #{field_helper}(method, options, html_options = {})
+            opts = options.stringify_keys
+            ActionView::Helpers::InstanceTag.new( @object.class.name.downcase, method, self, nil, options[:object]).send( :add_default_name_and_id, opts )
+            content = @template.content_tag( #{content_tag_for( field_helper).inspect}, @object.send( method), :id => opts['id'] )
+            @template.content_tag( #{container_tag_for( field_helper).inspect},
+                                  label_element(method, options, html_options) +
+                                  content,
+                                  attributes_for(method, '#{field_helper}') )
+          end
+        END
+        class_eval src, __FILE__, __LINE__
+      end
+
+      def self.create_short_field_helper(field_helper)
+        src = <<-END
+          def #{field_helper}(method, options, html_options = {})
+            opts = options.stringify_keys
+            ActionView::Helpers::InstanceTag.new( @object.class.name.downcase, method, self, nil, options[:object]).send( :add_default_name_and_id, opts )
+            content = @template.content_tag( #{content_tag_for( field_helper).inspect}, @object.send( method), :id => opts['id'] )
+            @template.content_tag( #{container_tag_for( field_helper).inspect},
+                                  content +
+                                  label_element(method, options, html_options),
+                                  attributes_for(method, '#{field_helper}')
+            )
+          end
+        END
+        class_eval src, __FILE__, __LINE__
+      end
+
+      def self.create_collection_field_helper(field_helper)
+        src = <<-END
+          def #{field_helper}(method, choices, options, html_options = {})
+            @template.content_tag( #{container_tag_for( field_helper).inspect},
+                                  label_element(method, options, html_options) +
+                                  link_to( method, @object.send(method.to_sym) ),
+                                  attributes_for(method, '#{field_helper}')
+            )
+          end
+        END
+        class_eval src, __FILE__, __LINE__
+      end
+
+      %w( text_field text_area password_field file_field
+          date_select time_select country_select ).each do |name|
+        create_field_helper name
+      end
+
+      %w( check_box radio_button ).each do |name|
+        create_short_field_helper name
+      end
+
+      %w( select ).each do |name|
+        create_collection_field_helper name
+      end
+
+      # Don't ever display mandatory indicator when building :no_controls
+      def mandatory?(method, override = nil)
+        false
+      end
+      
+      # Ignore errors when building :no_controls
+      def errors_for?(method)
+        nil
+      end
+      
+    end # DivBuilder
+    
+    # This is the builder used when the :no_controls option != true
+    class FormBuilder < BaseBuilder
+
+      # App-wide form configuration.
+      # E.g. in config/initializers/form_builder.rb:
+      #
+      #   AirBlade::AirBudd::FormBuilder.default_options[:required_signifier] = '*'
+      #
+      self.default_options = {
+        :required_signifier => '(required)',
+        :capitalize_errors  => true
+      }
+      
+      # Per-form configuration (overrides app-wide form configuration).
+      # E.g. in a form itself:
+      #
+      #   - airbudd_form_for @member do |f|
+      #     - f.required_signifier = '*'
+      #     = f.text_field :name
+      #     ...etc...
+      #
+      attr_writer *default_options.keys
+      default_options.keys.each do |field|
+        src = <<-END_SRC
+          def #{field}
+            @#{field} || default_options[:#{field}]
+          end
+        END_SRC
+        class_eval src, __FILE__, __LINE__
+      end
+      
+
+      # Support for GeoTools.
+      # http://opensource.airbladesoftware.com/trunk/plugins/geo_tools/
+      def latitude_field(method, options = {}, html_options = {})
+        @template.content_tag('p',
+          label_element(method, options, html_options) + (
+              vanilla_text_field("#{method}_degrees",       options.merge(:maxlength => 2)) + '&deg;'   +
+              vanilla_text_field("#{method}_minutes",       options.merge(:maxlength => 2)) + '.'       +
+              vanilla_text_field("#{method}_milli_minutes", options.merge(:maxlength => 3)) + '&prime;' +
+              # Hmm, we pass the options in the html_options position.
+              vanilla_select("#{method}_hemisphere", %w( N S ), {}, options)
+            ) +
+            hint_element(options),
+          (errors_for?(method) ? {:class => 'error'} : {})
+        )
+      end
+
+      # Support for GeoTools.
+      # http://opensource.airbladesoftware.com/trunk/plugins/geo_tools/
+      def longitude_field(method, options = {}, html_options = {})
+        @template.content_tag('p',
+          label_element(method, options, html_options) + (
+              vanilla_text_field("#{method}_degrees",       options.merge(:maxlength => 3)) + '&deg;'   +
+              vanilla_text_field("#{method}_minutes",       options.merge(:maxlength => 2)) + '.'       +
+              vanilla_text_field("#{method}_milli_minutes", options.merge(:maxlength => 3)) + '&prime;' +
+              # Hmm, we pass the options in the html_options position.
+              vanilla_select("#{method}_hemisphere", %w( E W ), {}, options)
+            ) +
+            hint_element(options),
+          (errors_for?(method) ? {:class => 'error'} : {})
+        )
+      end
+      
+      protected
+
+      # Creates a glorified form field helper.  It takes a form helper's usual
+      # arguments with an optional options hash:
+      #
+      # <%= form.text_field 'title',
+      #                     :required => true,
+      #                     :label    => "Article's Title",
+      #                     :hint     => "Try not to use the letter 'e'." %>
+      #
+      # The code above generates the following HTML.  The :required entry in the hash
+      # triggers the <em/> element and the :label overwrites the default field label,
+      # 'title' in this case, with its value.  The stanza is wrapped in a <p/> element.
+      #
+      # <p class="text">
+      #   <label for="article_title">Article's Title:
+      #     <em class="required">(required)</em>
+      #   </label>
+      #   <input id="article_title" name="article[title]" type="text" value=""/>
+      #   <span class="hint">Try not to use the letter 'e'.</span>
+      # </p>
+      #
+      # If the field's value is invalid, the <p/> is marked so and a <span/> is added
+      # with the (in)validation message:
+      #
+      # <p class="error text">
+      #   <label for="article_title">Article's Title:
+      #     <em class="required">(required)</em>
+      #     <span class="feedback">can't be blank</span>
+      #   </label>
+      #   <input id="article_title" name="article[title]" type="text" value=""/>
+      #   <span class="hint">Try not to use the letter 'e'.</span>
+      # </p>
+      #
+      # You can also pass an :addendum option.  This generates a <span/> between the
+      # <input/> and the hint.  Typically you would use this to show a small icon
+      # for deleting the field.
+      def self.create_field_helper(field_helper)
+        src = <<-END
+          def #{field_helper}(method, options, html_options = {})
+            @template.content_tag( #{container_tag_for( field_helper).inspect},
+                                  label_element(method, options, html_options) +
+                                  super(method, options) +
+                                  addendum_element(options) +
+                                  hint_element(options),
+                                  attributes_for(method, '#{field_helper}') )
+          end
+        END
+        class_eval src, __FILE__, __LINE__
+      end
+
+      def self.create_short_field_helper(field_helper)
+        src = <<-END
+          def #{field_helper}(method, options, html_options = {})
+            @template.content_tag( #{container_tag_for( field_helper).inspect},
+                                  super(method, options) +
+                                  label_element(method, options, html_options) +
+                                  hint_element(options),
+                                  attributes_for(method, '#{field_helper}')
+            )
+          end
+        END
+        class_eval src, __FILE__, __LINE__
+      end
+
+      # TODO: DRY this with self.create_field_helper above.
+      def self.create_collection_field_helper(field_helper)
+        src = <<-END
+          def #{field_helper}(method, choices, options, html_options = {})
+            @template.content_tag( #{container_tag_for( field_helper).inspect},
+                                  label_element(method, options, html_options) +
+                                  super(method, choices, options) +
+                                  addendum_element(options) +
+                                  hint_element(options),
+                                  attributes_for(method, '#{field_helper}')
+            )
+          end
+        END
+        class_eval src, __FILE__, __LINE__
+      end
+
+      # Beefs up the appropriate field helpers.
+      %w( text_field text_area password_field file_field
+          date_select time_select country_select ).each do |name|
+        create_field_helper name
+      end
+
+      # Beefs up the appropriate field helpers.
+      %w( check_box radio_button ).each do |name|
+        create_short_field_helper name
+      end
+
+      # Beefs up the appropriate field helpers.
+      %w( select ).each do |name|
+        create_collection_field_helper name
+      end
+
+      def attributes_for(method, field_helper)
+        result = super
+        result[:class] = ( ((result || {})[:class] || '').split << 'error')*' ' if errors_for?(method)
+        result
+      end
+
       def mandatory?(method, override = nil)
         return override unless override.nil?
         # Leverage vendor/validation_reflection.rb

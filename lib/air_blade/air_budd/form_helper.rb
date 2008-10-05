@@ -7,7 +7,7 @@ module AirBlade
         code = <<-END
           def airbudd_#{method}(name, *args, &block)
             options = args.last.is_a?(Hash) ? args.pop : {}
-            options = options.merge :builder => AirBlade::AirBudd::FormBuilder.with_field_defaults( options.delete(:field_defaults))
+            options = options.merge :builder => ( options.delete(:no_controls) ? AirBlade::AirBudd::DivBuilder : AirBlade::AirBudd::FormBuilder )
             #{method}(name, *(args << options), &block)
           end
         END
