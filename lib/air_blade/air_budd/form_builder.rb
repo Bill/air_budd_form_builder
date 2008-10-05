@@ -116,17 +116,17 @@ module AirBlade
 
       def data_type_for(field_helper)
         case field_helper
-        when 'text_field';     'text'
-        when 'text_area';      'text'
-        when 'password_field'; 'password'
-        when 'file_field';     'file'
-        when 'hidden_field';   'hidden'
-        when 'check_box';      'checkbox'
-        when 'radio_button';   'radio'
-        when 'select';         'select'
-        when 'date_select';    'select date'
-        when 'time_select';    'select time'
-        when 'country_select'; 'select country'
+        when 'text_field';     'text attribute'
+        when 'text_area';      'text attribute'
+        when 'password_field'; 'password attribute'
+        when 'file_field';     'file attribute'
+        when 'hidden_field';   'hidden attribute'
+        when 'check_box';      'checkbox attribute'
+        when 'radio_button';   'radio attribute'
+        when 'select';         'select attribute'
+        when 'date_select';    'select date attribute'
+        when 'time_select';    'select time attribute'
+        when 'country_select'; 'select country attribute'
         else ''
         end
       end

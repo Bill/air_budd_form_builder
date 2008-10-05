@@ -11,7 +11,7 @@ module AirBlade
       end
 
       def airbudd_fields_for(record_or_name_or_array, *args, &proc)
-        # Ugh. Ruby won't let us pass two blocks. One must be a Proc, hence the lambda here.
+        # Well we don't do very well unles we use Procs instead of blocks, hence the Proc and lambda
         with_fields_for_options( lambda { | no_controls, record_or_name_or_array, args, original_callers_proc |
             # careful! don't call super with our original arguments (call w/ modified ones)
             super record_or_name_or_array, *args, &original_callers_proc.binding
@@ -97,7 +97,7 @@ module AirBlade
       end
 
       def wrapper_start( no_controls, is_remote, options, object_name, &proc)
-        concat("<div class='#{object_name}'>", proc.binding)
+        concat("<div class='#{object_name} object'>", proc.binding)
         url, html = options.delete(:url), options.delete(:html)
         unless no_controls
           if is_remote
