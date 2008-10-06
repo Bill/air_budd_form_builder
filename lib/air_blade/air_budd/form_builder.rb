@@ -67,35 +67,33 @@ module AirBlade
       #            Optional; icon will be shown unless :icon set to false.
       #   :url   - The URL to link to (only used in links).
       #            Optional; defaults to ''.
-      def button(purpose = :save, options = {}, html_options = {})
+      def button(purpose = :edit, options = {}, html_options = {})
         # TODO: DRY the :a and :button.
-        element, icon, nature = case purpose
-                                when :new    then [:a,      'add',        'positive']
-                                when :save   then [:button, 'tick',       'positive']
-                                when :cancel then [:a,      'arrow_undo', nil       ]
-                                when :edit   then [:a,      'pencil',     nil       ]
-                                when :delete then [:button, 'cross',      'negative']
-                                end
-        legend = ( (options[:icon] == false || options[:icon] == 'false') ?
-                   '' :
-                   "<img src='/images/icons/#{icon}.png' alt=''/> " ) +
-                 (options[:label] || purpose.to_s.capitalize)
-
+        element, icon, nature = link_mapping( purpose )
+        return unless element
         html_options.merge!(:class => nature)
-        if element == :button
-          html_options.merge!(:type => 'submit')
-        else
-          html_options.merge!(:href => (options[:url] || ''))
-        end
-
-        # TODO: separate button and link construction and use
-        # link_to to gain its functionality, e.g. :back?
+        html_options.merge!(:href => (options[:url] || ''))
         @template.content_tag(element.to_s,
-                              legend,
+                              legend( options, icon, purpose ),
                               html_options)
       end
 
       protected
+      
+      def link_mapping( purpose )
+        case purpose
+        when :new    then [:a,      'add',        'positive']
+        when :cancel then [:a,      'arrow_undo', nil       ]
+        when :edit   then [:a,      'pencil',     nil       ]
+        end
+      end
+      
+      def legend( options, icon, purpose)
+        ( (options[:icon] == false || options[:icon] == 'false') ?
+                   '' :
+                   "<img src='/images/icons/#{icon}.png' alt=''/> " ) +
+                 (options[:label] || purpose.to_s.capitalize)
+      end
 
       # Tag around content
       def self.content_tag_for( field_helper)
@@ -347,7 +345,27 @@ module AirBlade
         )
       end
       
+      def button(purpose = :save, options = {}, html_options = {})
+        return super || begin
+          element, icon, nature = button_mapping( purpose )
+          return unless element
+          html_options.merge!(:class => nature)
+          html_options.merge!(:type => 'submit')
+          @template.content_tag(element.to_s,
+                                legend( options, icon, purpose),
+                                html_options)
+          end
+      end
+      
+      
       protected
+      
+      def button_mapping( purpose)
+        case purpose
+        when :save   then [:button, 'tick',       'positive']
+        when :delete then [:button, 'cross',      'negative']
+        end
+      end
 
       # Creates a glorified form field helper.  It takes a form helper's usual
       # arguments with an optional options hash:

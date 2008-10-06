@@ -17,7 +17,7 @@ describe 'builder' do
   end
   
   shared_examples_for 'controls mode' do
-    it 'render form and controls' do
+    it 'renders form and controls' do
       response.should have_tag('form') do
         with_tag( 'input[id=article_title][type=text]')
         with_tag( 'button[type=submit][class*=positive]')
@@ -25,38 +25,83 @@ describe 'builder' do
     end
   end
   
+  shared_examples_for 'no controls mode' do
+    it 'renders no form and no controls' do
+      response.should_not have_tag('form')
+      response.should_not have_tag( 'input[id=article_title][type=text]')
+      response.should_not have_tag( 'button[type=submit][class*=positive]')
+    end
+  end
+  
+  
   shared_examples_for 'indicate errors' do
-    it 'have error class on container' do
+    it 'has error class on container' do
       response.should have_tag('p[class*=error]')
     end
-    it 'display error message' do
+    it 'displays error message' do
       response.should have_tag( 'label[for=article_title]', "Title: (required) Can't be blank.")
     end
   end
   
+  shared_examples_for 'indicate no errors' do
+    it 'has no error class on container' do
+      response.should_not have_tag('p[class*=error]')
+    end
+    it 'displays no error message' do
+      response.should_not have_tag( 'label[for=article_title]', "Title: (required) Can't be blank.")
+    end
+  end
 
   def article
-    @article ||= Article.new( :title => 'first', :body => 'Lorem ipsum dolor sit amet, consectetur adipisicing elit, sed do eiusmod tempor incididunt ut labore et dolore magna aliqua. Ut enim ad minim veniam, quis nostrud exercitation ullamco laboris nisi ut aliquip ex ea commodo consequat. Duis aute irure dolor in reprehenderit in voluptate velit esse cillum dolore eu fugiat nulla pariatur. Excepteur sint occaecat cupidatat non proident, sunt in culpa qui officia deserunt mollit anim id est laborum.', :published => true)
+    @article ||= Article.new( :title => 'first', :body => 'Lorem ipsum dolor sit amet, consectetur adipisicing elit, sed do eiusmod tempor incididunt ut labore et dolore magna aliqua.', :published => true)
   end
-  
+
   before(:each) do
     assigns[:article] = article
     article.valid?
-    render :partial => 'article/show_default'
   end
-  
-  it_should_behave_like 'always'
-  
-  describe 'default rendering an object with no errors' do
-    it_should_behave_like 'controls mode'
-  end
-  
-  describe 'default rendering an object with errors' do
-    def article
-      super.title = nil # make the article invalid
-      super
+
+  describe 'in controls mode (default)' do
+
+    before(:each) do
+      render :partial => 'article/show_default'
     end
-    it_should_behave_like 'controls mode'
-    it_should_behave_like 'indicate errors'
+
+    it_should_behave_like 'always'
+    
+    describe 'in controls mode (default) rendering an object with no errors' do
+      it_should_behave_like 'controls mode'
+    end
+  
+    describe 'in controls mode (default) rendering an object with errors' do
+      def article
+        super.title = nil # make the article invalid
+        super
+      end
+      it_should_behave_like 'controls mode'
+      it_should_behave_like 'indicate errors'
+    end
+    
+  end # 'in controls mode (default)'
+  
+  describe 'in no_controls mode' do
+    
+    before(:each) do
+      render :partial => 'article/show_no_controls'
+    end
+
+    it_should_behave_like 'always'
+    
+    describe 'rendering an object with no errors' do
+      it_should_behave_like 'no controls mode'
+    end
+  
+    describe 'rendering an object with errors' do
+      def article
+        super.title = nil # make the article invalid
+        super
+      end
+      it_should_behave_like 'indicate no errors'
+    end
   end
 end
