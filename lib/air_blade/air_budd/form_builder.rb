@@ -165,7 +165,6 @@ module AirBlade
 
         html_options.stringify_keys!
         html_options['for'] ||= "#{@object_name}_#{field}"
-
         if errors_for? field
           error_msg = @object.errors[field].to_a.to_sentence
           option_capitalize = options.delete(:capitalize) || capitalize_errors

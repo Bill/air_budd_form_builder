@@ -58,7 +58,7 @@ module AirBlade
       # is from the direct caller and original_callers_proc is from the original caller
       def with_fields_for_options( direct_callers_proc, record_or_name_or_array, args, original_callers_proc)
         options = args.detect { |argument| argument.is_a?(Hash) }
-        no_controls = options.delete(:no_controls)
+        no_controls = (options || {}).delete(:no_controls)
         builder = ( no_controls ? AirBlade::AirBudd::DivBuilder : AirBlade::AirBudd::FormBuilder )
         if options.nil?
           options = {:builder => builder}
