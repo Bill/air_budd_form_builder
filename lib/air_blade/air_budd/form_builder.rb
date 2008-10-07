@@ -212,7 +212,7 @@ module AirBlade
       
     end # BaseBuilder
 
-    # This is the builder used when :no_controls => true
+    # This is the builder used when :controls => false
     class DivBuilder < BaseBuilder
       
       self.wrapper_class = Wrapper
@@ -295,19 +295,19 @@ module AirBlade
         create_collection_field_helper name
       end
 
-      # Don't ever display mandatory indicator when building :no_controls
+      # Don't ever display mandatory indicator when building :controls
       def mandatory?(method, override = nil)
         false
       end
       
-      # Ignore errors when building :no_controls
+      # Ignore errors when building :controls => false
       def errors_for?(method)
         nil
       end
       
     end # DivBuilder
     
-    # This is the builder used when the :no_controls option != true
+    # This is the builder used when the :controls option true
     class FormBuilder < BaseBuilder
 
       self.wrapper_class = Wrapper

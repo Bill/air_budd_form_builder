@@ -12,7 +12,7 @@ module AirBlade
 
       def airbudd_fields_for(record_or_name_or_array, *args, &proc)
         # Well we don't do very well unles we use Procs instead of blocks, hence the Proc and lambda
-        with_fields_for_options( lambda { | no_controls, scaffold, record_or_name_or_array, args, original_callers_proc |
+        with_fields_for_options( lambda { | controls, scaffold, record_or_name_or_array, args, original_callers_proc |
             # careful! don't call super with our original arguments (call w/ modified ones)
             super record_or_name_or_array, *args, &original_callers_proc.binding
         }, record_or_name_or_array, args, Proc.new( &proc ) )
@@ -48,8 +48,8 @@ module AirBlade
       
       def x_form_for( is_remote, record_or_name_or_array, *args, &proc)
         # can't call a method w/ two blocks--one's gotta be a Proc
-        with_fields_for_options( lambda{ | no_controls, scaffold, record_or_name_or_array, args, original_callers_proc |
-          wrapper( no_controls, scaffold, is_remote, record_or_name_or_array, *args, &original_callers_proc.binding)
+        with_fields_for_options( lambda{ | controls, scaffold, record_or_name_or_array, args, original_callers_proc |
+          wrapper( controls, scaffold, is_remote, record_or_name_or_array, *args, &original_callers_proc.binding)
         }, record_or_name_or_array, args, Proc.new( &proc ) )
       end
       
@@ -62,20 +62,20 @@ module AirBlade
           options = {}
           args << options
         end
-        options.reverse_merge! :no_controls => false, :scaffold => true # defaults
-        no_controls = options.delete(:no_controls)
+        options.reverse_merge! :controls => true, :scaffold => true # defaults
+        controls = options.delete(:controls)
         scaffold = options.delete(:scaffold)
-        builder = ( no_controls ? AirBlade::AirBudd::DivBuilder : AirBlade::AirBudd::FormBuilder )
+        builder = ( controls ? AirBlade::AirBudd::FormBuilder : AirBlade::AirBudd::DivBuilder)
         builder = ( returning( Class.new( builder ) ) { |c| 
           c.wrapper_class = AirBlade::AirBudd::EmptyWrapper } ) unless scaffold
         options[:builder] = builder
-        direct_callers_proc.call no_controls, scaffold, record_or_name_or_array, args, original_callers_proc
+        direct_callers_proc.call controls, scaffold, record_or_name_or_array, args, original_callers_proc
       end
       
       # Guts copied from Rails 2.1.0 form_for. 
       # The purpose of this method is to let us wrap the content in a div and
       # to also make form tag optional
-      def wrapper( no_controls, scaffold, is_remote, record_or_name_or_array, *args, &proc)
+      def wrapper( controls, scaffold, is_remote, record_or_name_or_array, *args, &proc)
         raise ArgumentError, "Missing block" unless block_given?
 
         options = args.extract_options!
@@ -95,15 +95,15 @@ module AirBlade
           args.unshift object
         end
 
-        wrapper_start( no_controls, scaffold, is_remote, options, object_name, &proc)
+        wrapper_start( controls, scaffold, is_remote, options, object_name, &proc)
         fields_for(object_name, *(args << options), &proc)
-        wrapper_end( no_controls, scaffold, &proc)
+        wrapper_end( controls, scaffold, &proc)
       end
 
-      def wrapper_start( no_controls, scaffold, is_remote, options, object_name, &proc)
+      def wrapper_start( controls, scaffold, is_remote, options, object_name, &proc)
         concat("<div class='#{object_name} object'>", proc.binding) if scaffold
         url, html = options.delete(:url), options.delete(:html)
-        unless no_controls
+        if controls
           if is_remote
             concat( form_remote_tag(options), proc.binding) # see Rails prototype_helper.rb
           else
@@ -112,8 +112,8 @@ module AirBlade
         end
       end
 
-      def wrapper_end( no_controls, scaffold, &proc)
-        concat('</form>', proc.binding) unless no_controls
+      def wrapper_end( controls, scaffold, &proc)
+        concat('</form>', proc.binding) if controls
         concat('</div>', proc.binding) if scaffold
       end
     end

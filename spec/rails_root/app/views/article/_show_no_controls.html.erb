@@ -1,4 +1,4 @@
-<% airbudd_form_for @article, :no_controls => true do |f| %>
+<% airbudd_form_for @article, :controls => false do |f| %>
   <%= f.text_field :title, :required => true, :name => "Article's Title" %>
   <% f.buttons do |b| %>
     <%= b.save %>
