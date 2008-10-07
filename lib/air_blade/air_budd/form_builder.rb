@@ -1,11 +1,75 @@
 module AirBlade
   module AirBudd
+    
+    LONG_FIELD_HELPERS = %w( text_field text_area password_field file_field
+      date_select time_select country_select )
+    SHORT_FIELD_HELPERS = %w( check_box radio_button )
+    COLLECTION_FIELD_HELPERS = %w( select )
+    ALL_FIELD_HELPERS = LONG_FIELD_HELPERS + SHORT_FIELD_HELPERS + COLLECTION_FIELD_HELPERS
+    
+    # elides attributes
+    # when you use this one, it's up to you go inject attributes into the containing element
+    class EmptyWrapper
+      def initialize( *args, &proc) # I don't care what my args are
+        super()
+      end
+      def field( field_helper, content, attributes)
+        content
+      end
+      def value( field_helper, content, attributes)
+        content
+      end
+    end
 
     class BaseBuilder < ActionView::Helpers::FormBuilder
       include Haml::Helpers if defined? Haml       # for compatibility
       include ActionView::Helpers::TextHelper      # so we can use concat
       include ActionView::Helpers::CaptureHelper   # so we can use capture
 
+      class Wrapper
+        def initialize( template)
+          @template = template
+        end
+        def field( field_helper, content, attributes)
+          @template.content_tag( attribute_tag_for( field_helper), content, attributes)
+        end
+        def value( field_helper, content, attributes)
+          @template.content_tag( value_tag_for( field_helper), content, attributes)
+        end
+        private
+        def attribute_tag_for( field_helper)
+          case field_helper
+          when 'text_area': 'div' # content tag will be div so this can't be p
+          else
+            'p'
+          end
+        end
+        def value_tag_for( field_helper)
+          case field_helper
+          when 'text_area': 'div' # in general these contain markup so we need divs
+          else
+            'span'
+          end
+        end
+      end
+
+      # App-wide form configuration.
+      # E.g. in config/initializers/form_builder.rb:
+      #
+      #   AirBlade::AirBudd::FormBuilder.default_options[:required_signifier] = '*'
+      #
+      class_inheritable_reader      :default_options
+      class_inheritable_hash_writer :default_options, :instance_writer => false
+      class_inheritable_accessor    :wrapper_class
+
+      self.default_options = { :label_suffix => ':'}
+      self.wrapper_class = Wrapper
+      
+      attr_accessor :wrapper
+      def initialize( *args, &proc)
+        super
+        self.wrapper = self.class.wrapper_class.new( @template )
+      end
 
       # Rails' render_partial calls this (to_s) to find default form
       # when you do something like: render :partial => f (for some builder f)
@@ -14,16 +78,6 @@ module AirBlade
       def self.to_s
         'FormBuilder'
       end
-      
-      # App-wide form configuration.
-      # E.g. in config/initializers/form_builder.rb:
-      #
-      #   AirBlade::AirBudd::FormBuilder.default_options[:required_signifier] = '*'
-      #
-      class_inheritable_reader :default_options
-      class_inheritable_hash_writer :default_options, :instance_writer => false
-
-      self.default_options = { :label_suffix => ':'}
 
       # Within the form's block you can get good buttons with:
       #
@@ -95,15 +149,6 @@ module AirBlade
                  (options[:label] || purpose.to_s.capitalize)
       end
 
-      # Tag around content
-      def self.content_tag_for( field_helper)
-        case field_helper
-        when 'text_area': 'div' # in general these contain markup so we need divs
-        else
-          'span'
-        end
-      end
-
       def method_missing(*args, &block)
         if args.first.to_s =~ /^(new|save|cancel|edit|delete)$/
           button args.shift, *args, &block
@@ -112,14 +157,6 @@ module AirBlade
         end
       end
       
-      # Tag around label + content
-      def self.container_tag_for( field_helper)
-        case field_helper
-        when 'text_area': 'div' # content tag will be div so this can't be p
-        else
-          'p'
-        end
-      end
 
       def data_type_for(field_helper)
         case field_helper
@@ -174,10 +211,12 @@ module AirBlade
       end
       
     end # BaseBuilder
-    
+
     # This is the builder used when :no_controls => true
     class DivBuilder < BaseBuilder
-
+      
+      self.wrapper_class = Wrapper
+      
       # Per-form configuration (overrides app-wide form configuration).
       # E.g. in a form itself:
       #
@@ -203,11 +242,11 @@ module AirBlade
           def #{field_helper}(method, options, html_options = {})
             opts = options.stringify_keys
             ActionView::Helpers::InstanceTag.new( @object.class.name.downcase, method, self, nil, options[:object]).send( :add_default_name_and_id, opts )
-            content = @template.content_tag( #{content_tag_for( field_helper).inspect}, @object.send( method), :id => opts['id'], :class => 'value' )
-            @template.content_tag( #{container_tag_for( field_helper).inspect},
-                                  label_element(method, options, html_options) +
-                                  content,
-                                  attributes_for(method, '#{field_helper}') )
+            content = wrapper.value( #{field_helper.inspect},
+              @object.send( method), :id => opts['id'], :class => 'value' )
+            wrapper.field( #{field_helper.inspect}, 
+              label_element(method, options, html_options) + content,
+              attributes_for(method, #{field_helper.inspect}) )
           end
         END
         class_eval src, __FILE__, __LINE__
@@ -218,12 +257,11 @@ module AirBlade
           def #{field_helper}(method, options, html_options = {})
             opts = options.stringify_keys
             ActionView::Helpers::InstanceTag.new( @object.class.name.downcase, method, self, nil, options[:object]).send( :add_default_name_and_id, opts )
-            content = @template.content_tag( #{content_tag_for( field_helper).inspect}, @object.send( method), :id => opts['id'], :class => 'value' )
-            @template.content_tag( #{container_tag_for( field_helper).inspect},
-                                  content +
-                                  label_element(method, options, html_options),
-                                  attributes_for(method, '#{field_helper}')
-            )
+            content = wrapper.value( #{field_helper.inspect},
+              @object.send( method), :id => opts['id'], :class => 'value')
+            wrapper.field( #{field_helper.inspect}, 
+              content + label_element(method, options, html_options),
+              attributes_for(method, #{field_helper.inspect}) )
           end
         END
         class_eval src, __FILE__, __LINE__
@@ -234,12 +272,11 @@ module AirBlade
           def #{field_helper}(method, choices, options, html_options = {})
             opts = options.stringify_keys
             ActionView::Helpers::InstanceTag.new( @object.class.name.downcase, method, self, nil, options[:object]).send( :add_default_name_and_id, opts )
-            content = @template.content_tag( #{content_tag_for( field_helper).inspect}, link_to( method, @object.send(method.to_sym) ), :id => opts['id'], :class => 'value' )
-            @template.content_tag( #{container_tag_for( field_helper).inspect},
-                                  label_element(method, options, html_options) +
-                                  content,
-                                  attributes_for(method, '#{field_helper}')
-            )
+            content = wrapper.value( #{field_helper.inspect},
+              link_to( method, @object.send(method.to_sym) ), :id => opts['id'], :class => 'value')
+            wrapper.field( #{field_helper.inspect}, 
+              label_element(method, options, html_options) + content,
+              attributes_for(method, #{field_helper.inspect}) )
           end
         END
         class_eval src, __FILE__, __LINE__
@@ -272,6 +309,8 @@ module AirBlade
     
     # This is the builder used when the :no_controls option != true
     class FormBuilder < BaseBuilder
+
+      self.wrapper_class = Wrapper
 
       # App-wide form configuration.
       # E.g. in config/initializers/form_builder.rb:
@@ -357,7 +396,6 @@ module AirBlade
           end
       end
       
-      
       protected
       
       def button_mapping( purpose)
@@ -405,13 +443,14 @@ module AirBlade
       def self.create_field_helper(field_helper)
         src = <<-END
           def #{field_helper}(method, options, html_options = {})
-            content = @template.content_tag( #{content_tag_for( field_helper).inspect}, super(method, options), :class => 'value')
-            @template.content_tag( #{container_tag_for( field_helper).inspect},
-                                  label_element(method, options, html_options) +
-                                  content +
-                                  addendum_element(options) +
-                                  hint_element(options),
-                                  attributes_for(method, '#{field_helper}') )
+            content = wrapper.value( #{field_helper.inspect},
+              super(method, options), :class => 'value')
+            wrapper.field( #{field_helper.inspect}, 
+              label_element(method, options, html_options) +
+              content +
+              addendum_element(options) +
+              hint_element(options),
+              attributes_for(method, #{field_helper.inspect}) )
           end
         END
         class_eval src, __FILE__, __LINE__
@@ -420,13 +459,13 @@ module AirBlade
       def self.create_short_field_helper(field_helper)
         src = <<-END
           def #{field_helper}(method, options, html_options = {})
-            content = @template.content_tag( #{content_tag_for( field_helper).inspect}, super(method, options), :class => 'value')
-            @template.content_tag( #{container_tag_for( field_helper).inspect},
-                                  content +
-                                  label_element(method, options, html_options) +
-                                  hint_element(options),
-                                  attributes_for(method, '#{field_helper}')
-            )
+            content = wrapper.value( #{field_helper.inspect},
+              super(method, options), :class => 'value')
+            wrapper.field( #{field_helper.inspect}, 
+              content +
+              label_element(method, options, html_options) +
+              hint_element(options),
+              attributes_for(method, #{field_helper.inspect}) )
           end
         END
         class_eval src, __FILE__, __LINE__
@@ -436,14 +475,14 @@ module AirBlade
       def self.create_collection_field_helper(field_helper)
         src = <<-END
           def #{field_helper}(method, choices, options, html_options = {})
-            content = @template.content_tag( #{content_tag_for( field_helper).inspect}, super(method, choices, options), :class => 'value')
-            @template.content_tag( #{container_tag_for( field_helper).inspect},
-                                  label_element(method, options, html_options) +
-                                  content +
-                                  addendum_element(options) +
-                                  hint_element(options),
-                                  attributes_for(method, '#{field_helper}')
-            )
+            content = wrapper.value( #{field_helper.inspect},
+              super(method, choices, options), :class => 'value')
+            wrapper.field( #{field_helper.inspect}, 
+              label_element(method, options, html_options) +
+              content +
+              addendum_element(options) +
+              hint_element(options),
+              attributes_for(method, #{field_helper.inspect}) )
           end
         END
         class_eval src, __FILE__, __LINE__

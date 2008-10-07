@@ -58,13 +58,17 @@ module AirBlade
       # is from the direct caller and original_callers_proc is from the original caller
       def with_fields_for_options( direct_callers_proc, record_or_name_or_array, args, original_callers_proc)
         options = args.detect { |argument| argument.is_a?(Hash) }
-        no_controls = (options || {}).delete(:no_controls)
-        builder = ( no_controls ? AirBlade::AirBudd::DivBuilder : AirBlade::AirBudd::FormBuilder )
-        if options.nil?
-          options = {:builder => builder}
+        if options.nil? # if caller didn't send options, append our own Hash
+          options = {}
           args << options
         end
-        options[:builder] = builder unless options.nil?
+        options.reverse_merge! :no_controls => false, :scaffold => true # defaults
+        no_controls = options.delete(:no_controls)
+        scaffold_opt = options.delete(:scaffold)
+        builder = ( no_controls ? AirBlade::AirBudd::DivBuilder : AirBlade::AirBudd::FormBuilder )
+        builder = ( returning( Class.new( builder ) ) { |c| 
+          c.wrapper_class = AirBlade::AirBudd::EmptyWrapper } ) unless scaffold_opt
+        options[:builder] = builder
         direct_callers_proc.call no_controls, record_or_name_or_array, args, original_callers_proc
       end
       
