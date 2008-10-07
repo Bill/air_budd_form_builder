@@ -215,6 +215,12 @@ module AirBlade
     # This is the builder used when :controls => false
     class DivBuilder < BaseBuilder
       
+      # See this plugin's init.rb where we define this function to return true on
+      #   ActionView::Helpers::FormBuilder
+      def rendering_controls?
+        false
+      end
+      
       self.wrapper_class = Wrapper
       
       # Per-form configuration (overrides app-wide form configuration).
