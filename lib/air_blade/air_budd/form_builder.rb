@@ -132,6 +132,17 @@ module AirBlade
                               html_options)
       end
 
+      def feedback( field)
+        if errors_for? field
+          error_msg = @object.errors[field].to_a.to_sentence
+          option_capitalize = options.delete(:capitalize) || capitalize_errors
+          error_msg = error_msg.capitalize unless option_capitalize == 'false' or option_capitalize == false
+          %Q( <span class="feedback">#{error_msg}.</span>)
+        else
+          ''
+        end
+      end
+
       protected
       
       def link_mapping( purpose )
@@ -200,13 +211,7 @@ module AirBlade
 
         html_options.stringify_keys!
         html_options['for'] ||= "#{@object_name}_#{field}"
-        if errors_for? field
-          error_msg = @object.errors[field].to_a.to_sentence
-          option_capitalize = options.delete(:capitalize) || capitalize_errors
-          error_msg = error_msg.capitalize unless option_capitalize == 'false' or option_capitalize == false
-          value += %Q( <span class="feedback">#{error_msg}.</span>)
-        end
-
+        value += feedback( field)
         @template.content_tag :label, value, html_options
       end
       
