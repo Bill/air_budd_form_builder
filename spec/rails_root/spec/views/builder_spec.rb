@@ -102,8 +102,6 @@ describe 'builder' do
 
     before(:each) do
       render :partial => 'article/show_default'
-      debugger
-      x = 1
     end
 
     it_should_behave_like 'always'

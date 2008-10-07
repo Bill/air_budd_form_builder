@@ -101,7 +101,7 @@ module AirBlade
       end
 
       def wrapper_start( controls, scaffold, is_remote, options, object_name, &proc)
-        concat("<div class='#{object_name}#{' draft' if controls}'>", proc.binding) if scaffold
+        concat("<div class='#{object_name}#{controls ? ' draft' : ' published' }'>", proc.binding) if scaffold
         url, html = options.delete(:url), options.delete(:html)
         if controls
           if is_remote
