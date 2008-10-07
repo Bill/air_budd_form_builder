@@ -23,6 +23,7 @@ config.action_mailer.delivery_method = :test
 
 
 config.gem "rspec-rails", :lib => "spec" 
+config.gem "ruby-debug"
 
 require 'ruby-debug'
 Debugger.start

@@ -21,37 +21,37 @@ module AirBlade
       end
     end
 
+    class Wrapper
+      def initialize( template)
+        @template = template
+      end
+      def field( field_helper, content, attributes)
+        @template.content_tag( attribute_tag_for( field_helper), content, attributes)
+      end
+      def value( field_helper, content, attributes)
+        @template.content_tag( value_tag_for( field_helper), content, attributes)
+      end
+      private
+      def attribute_tag_for( field_helper)
+        case field_helper
+        when 'text_area': 'div' # content tag will be div so this can't be p
+        else
+          'p'
+        end
+      end
+      def value_tag_for( field_helper)
+        case field_helper
+        when 'text_area': 'div' # in general these contain markup so we need divs
+        else
+          'span'
+        end
+      end
+    end
+
     class BaseBuilder < ActionView::Helpers::FormBuilder
       include Haml::Helpers if defined? Haml       # for compatibility
       include ActionView::Helpers::TextHelper      # so we can use concat
       include ActionView::Helpers::CaptureHelper   # so we can use capture
-
-      class Wrapper
-        def initialize( template)
-          @template = template
-        end
-        def field( field_helper, content, attributes)
-          @template.content_tag( attribute_tag_for( field_helper), content, attributes)
-        end
-        def value( field_helper, content, attributes)
-          @template.content_tag( value_tag_for( field_helper), content, attributes)
-        end
-        private
-        def attribute_tag_for( field_helper)
-          case field_helper
-          when 'text_area': 'div' # content tag will be div so this can't be p
-          else
-            'p'
-          end
-        end
-        def value_tag_for( field_helper)
-          case field_helper
-          when 'text_area': 'div' # in general these contain markup so we need divs
-          else
-            'span'
-          end
-        end
-      end
 
       # App-wide form configuration.
       # E.g. in config/initializers/form_builder.rb:
@@ -351,6 +351,8 @@ module AirBlade
                               attributes_for(method_for_text_field, 'text_field')
         )
       end
+      
+      # TODO: latitude_field, longitude_field must be defined on DivBuilder too
 
       # Support for GeoTools.
       # http://opensource.airbladesoftware.com/trunk/plugins/geo_tools/
