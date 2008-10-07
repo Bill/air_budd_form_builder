@@ -14,7 +14,7 @@ module AirBlade
         # Well we don't do very well unles we use Procs instead of blocks, hence the Proc and lambda
         with_fields_for_options( lambda { | controls, scaffold, record_or_name_or_array, args, original_callers_proc |
             # careful! don't call super with our original arguments (call w/ modified ones)
-            super record_or_name_or_array, *args, &original_callers_proc.binding
+            fields_for record_or_name_or_array, *args, &original_callers_proc.binding
         }, record_or_name_or_array, args, Proc.new( &proc ) )
       end
 
