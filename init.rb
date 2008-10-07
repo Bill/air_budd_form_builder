@@ -9,7 +9,6 @@ ActionView::Base.field_error_proc = Proc.new { |html_tag, instance| html_tag }
 ActionView::Base.send :include, AirBlade::AirBudd::FormHelper
 
 ActionView::Helpers::FormBuilder.class_eval do
-  debugger
   # so that forms can test their mode. overridden in some subclasses.
   def rendering_controls?
     true
