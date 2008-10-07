@@ -27,9 +27,10 @@ describe 'builder' do
 
   shared_examples_for 'controls mode without scaffold' do
     it 'renders no paragraph tag around attribute content' do
-      response.should have_tag('form') do
-        without_tag( 'p')
-      end
+      response.should_not have_tag('form > p')
+    end
+    it 'renders no div tag around object content' do
+      response.should_not have_tag('div > form')
     end
   end
   
