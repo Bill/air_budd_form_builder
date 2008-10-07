@@ -14,10 +14,10 @@ module AirBlade
         super()
       end
       def field( field_helper, content, attributes)
-        content
+        content || '' # gotta turn nil into empty string or empty attribues cause exceptions
       end
       def value( field_helper, content, attributes)
-        content
+        content || ''
       end
     end
 

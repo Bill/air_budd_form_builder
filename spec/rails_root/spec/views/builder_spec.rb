@@ -25,15 +25,27 @@ describe 'builder' do
     end
   end
 
-  shared_examples_for 'controls mode without scaffold' do
-    it 'renders no paragraph tag around attribute content' do
-      response.should_not have_tag('form > p')
-    end
-    it 'renders no div tag around object content' do
-      response.should_not have_tag('div > form')
+  shared_examples_for 'no scaffold' do
+    it 'renders no block tag around attribute content' do
+      response.should_not have_tag('p > input')
+      response.should_not have_tag('div > input')
     end
   end
   
+  shared_examples_for 'controls mode without scaffold' do
+    it_should_behave_like 'no scaffold'
+    it 'renders no tag around object content' do
+      response.should_not have_tag('* > form')
+    end
+  end
+
+  shared_examples_for 'no controls mode without scaffold' do
+    it_should_behave_like 'no scaffold'
+    it 'renders no tag around object content' do
+      response.should_not have_tag('* > input')
+    end
+  end
+
   shared_examples_for 'no controls mode' do
     it 'renders no form and no controls' do
       response.should_not have_tag('form')
@@ -149,6 +161,30 @@ describe 'builder' do
       it_should_behave_like 'controls mode without scaffold'
       it_should_behave_like 'error message'
       it_should_behave_like 'no error class'
+    end
+    
+  end
+
+
+  describe 'with no scaffold and no controls generation' do
+    before(:each) do
+      render :partial => 'article/show_no_controls_no_scaffold'
+    end
+
+    it_should_behave_like 'always'
+    
+    describe 'rendering an object with no errors' do
+      it_should_behave_like 'no controls mode'
+    end
+  
+    describe 'rendering an object with errors' do
+      def article
+        super.title = nil # make the article invalid
+        super
+      end
+      it_should_behave_like 'no controls mode'
+      # it_should_behave_like 'no error'
+      # it_should_behave_like 'no controls mode without scaffold'
     end
     
   end
