@@ -265,6 +265,49 @@ module AirBlade
         @template.content_tag :label, value, html_options
       end
       
+      def self.create_field_helper(field_helper)
+        # see our alias_method_chain below
+        src = <<-END
+          def #{field_helper}_with_buds(method, options, html_options = {})
+            field( #{field_helper.inspect}, method, options, html_options)
+          end
+        END
+        class_eval src, __FILE__, __LINE__
+      end
+
+      def self.create_short_field_helper(field_helper)
+        src = <<-END
+          def #{field_helper}_with_buds(method, options, html_options = {})
+            short_field( #{field_helper.inspect}, method, options, html_options)
+          end
+        END
+        class_eval src, __FILE__, __LINE__
+      end
+
+      def self.create_collection_field_helper(field_helper)
+        src = <<-END
+          def #{field_helper}_with_buds(method, choices, options, html_options = {})
+            collection_field( #{field_helper.inspect}, method, choices, options, html_options)
+          end
+        END
+        class_eval src, __FILE__, __LINE__
+      end
+
+      LONG_FIELD_HELPERS.each do |name|
+        create_field_helper name
+      end
+
+      SHORT_FIELD_HELPERS.each do |name|
+        create_short_field_helper name
+      end
+
+      COLLECTION_FIELD_HELPERS.each do |name|
+        create_collection_field_helper name
+      end
+      
+      # We'll need handles to the original methods down in some subclasses
+      ALL_FIELD_HELPERS.each{ |h| alias_method_chain h.to_sym, :buds}
+      
     end # BaseBuilder
 
     # This is the builder used when :controls => false
@@ -298,62 +341,34 @@ module AirBlade
 
       protected
 
-      def self.create_field_helper(field_helper)
-        src = <<-END
-          def #{field_helper}(method, options, html_options = {})
-            opts = options.stringify_keys
-            ActionView::Helpers::InstanceTag.new( @object.class.name.downcase, method, self, nil, options[:object]).send( :add_default_name_and_id, opts )
-            content = wrapper.value( #{field_helper.inspect},
-              @object.send( method), :id => opts['id'], :class => 'value' )
-            wrapper.field( #{field_helper.inspect}, 
-              label_element(method, options, html_options) + content,
-              attributes_for(method, #{field_helper.inspect}) )
-          end
-        END
-        class_eval src, __FILE__, __LINE__
+      def field( field_helper, method, options, html_options = {})
+        opts = options.stringify_keys
+        ActionView::Helpers::InstanceTag.new( @object.class.name.downcase, method, self, nil, options[:object]).send( :add_default_name_and_id, opts )
+        content = wrapper.value( field_helper,
+          @object.send( method), :id => opts['id'], :class => 'value' )
+        wrapper.field( field_helper, 
+          label_element(method, options, html_options) + content,
+          attributes_for(method, field_helper) )
       end
 
-      def self.create_short_field_helper(field_helper)
-        src = <<-END
-          def #{field_helper}(method, options, html_options = {})
-            opts = options.stringify_keys
-            ActionView::Helpers::InstanceTag.new( @object.class.name.downcase, method, self, nil, options[:object]).send( :add_default_name_and_id, opts )
-            content = wrapper.value( #{field_helper.inspect},
-              @object.send( method), :id => opts['id'], :class => 'value')
-            wrapper.field( #{field_helper.inspect}, 
-              content + label_element(method, options, html_options),
-              attributes_for(method, #{field_helper.inspect}) )
-          end
-        END
-        class_eval src, __FILE__, __LINE__
+      def short_field( field_helper, method, options, html_options = {})
+        opts = options.stringify_keys
+        ActionView::Helpers::InstanceTag.new( @object.class.name.downcase, method, self, nil, options[:object]).send( :add_default_name_and_id, opts )
+        content = wrapper.value( field_helper,
+          @object.send( method), :id => opts['id'], :class => 'value')
+        wrapper.field( field_helper, 
+          content + label_element(method, options, html_options),
+          attributes_for(method, field_helper) )
       end
 
-      def self.create_collection_field_helper(field_helper)
-        src = <<-END
-          def #{field_helper}(method, choices, options, html_options = {})
-            opts = options.stringify_keys
-            ActionView::Helpers::InstanceTag.new( @object.class.name.downcase, method, self, nil, options[:object]).send( :add_default_name_and_id, opts )
-            content = wrapper.value( #{field_helper.inspect},
-              link_to( method, @object.send(method.to_sym) ), :id => opts['id'], :class => 'value')
-            wrapper.field( #{field_helper.inspect}, 
-              label_element(method, options, html_options) + content,
-              attributes_for(method, #{field_helper.inspect}) )
-          end
-        END
-        class_eval src, __FILE__, __LINE__
-      end
-
-      %w( text_field text_area password_field file_field
-          date_select time_select country_select ).each do |name|
-        create_field_helper name
-      end
-
-      %w( check_box radio_button ).each do |name|
-        create_short_field_helper name
-      end
-
-      %w( select ).each do |name|
-        create_collection_field_helper name
+      def collection_field( field_helper, method, choices, options, html_options = {})
+        opts = options.stringify_keys
+        ActionView::Helpers::InstanceTag.new( @object.class.name.downcase, method, self, nil, options[:object]).send( :add_default_name_and_id, opts )
+        content = wrapper.value( field_helper,
+          link_to( method, @object.send(method.to_sym) ), :id => opts['id'], :class => 'value')
+        wrapper.field( field_helper, 
+          label_element(method, options, html_options) + content,
+          attributes_for(method, field_helper) )
       end
 
       # Don't ever display mandatory indicator when building :controls
@@ -503,68 +518,37 @@ module AirBlade
       # You can also pass an :addendum option.  This generates a <span/> between the
       # <input/> and the hint.  Typically you would use this to show a small icon
       # for deleting the field.
-      def self.create_field_helper(field_helper)
-        src = <<-END
-          def #{field_helper}(method, options, html_options = {})
-            content = wrapper.value( #{field_helper.inspect},
-              super(method, options), :class => 'value')
-            wrapper.field( #{field_helper.inspect}, 
-              label_element(method, options, html_options) +
-              content +
-              addendum_element(options) +
-              hint_element(options),
-              attributes_for(method, #{field_helper.inspect}) )
-          end
-        END
-        class_eval src, __FILE__, __LINE__
+      def field( field_helper, method, options, html_options = {})
+        content = wrapper.value( field_helper,
+          # invoke a Rails built-in control generator
+          send( "#{field_helper}_without_buds", method, options), :class => 'value')
+        wrapper.field( field_helper, 
+          label_element(method, options, html_options) +
+          content +
+          addendum_element(options) +
+          hint_element(options),
+          attributes_for(method, field_helper) )
       end
 
-      def self.create_short_field_helper(field_helper)
-        src = <<-END
-          def #{field_helper}(method, options, html_options = {})
-            content = wrapper.value( #{field_helper.inspect},
-              super(method, options), :class => 'value')
-            wrapper.field( #{field_helper.inspect}, 
-              content +
-              label_element(method, options, html_options) +
-              hint_element(options),
-              attributes_for(method, #{field_helper.inspect}) )
-          end
-        END
-        class_eval src, __FILE__, __LINE__
+      def short_field( field_helper, method, options, html_options = {})
+        content = wrapper.value( field_helper,
+          send( "#{field_helper}_without_buds", method, options), :class => 'value')
+        wrapper.field( field_helper, 
+          content +
+          label_element(method, options, html_options) +
+          hint_element(options),
+          attributes_for(method, field_helper) )
       end
 
-      # TODO: DRY this with self.create_field_helper above.
-      def self.create_collection_field_helper(field_helper)
-        src = <<-END
-          def #{field_helper}(method, choices, options, html_options = {})
-            content = wrapper.value( #{field_helper.inspect},
-              super(method, choices, options), :class => 'value')
-            wrapper.field( #{field_helper.inspect}, 
-              label_element(method, options, html_options) +
-              content +
-              addendum_element(options) +
-              hint_element(options),
-              attributes_for(method, #{field_helper.inspect}) )
-          end
-        END
-        class_eval src, __FILE__, __LINE__
-      end
-
-      # Beefs up the appropriate field helpers.
-      %w( text_field text_area password_field file_field
-          date_select time_select country_select ).each do |name|
-        create_field_helper name
-      end
-
-      # Beefs up the appropriate field helpers.
-      %w( check_box radio_button ).each do |name|
-        create_short_field_helper name
-      end
-
-      # Beefs up the appropriate field helpers.
-      %w( select ).each do |name|
-        create_collection_field_helper name
+      def collection_field( field_helper, method, choices, options, html_options = {})
+        content = wrapper.value( field_helper,
+          send( "#{field_helper}_without_buds", method, choices, options), :class => 'value')
+        wrapper.field( field_helper, 
+          label_element(method, options, html_options) +
+          content +
+          addendum_element(options) +
+          hint_element(options),
+          attributes_for(method, field_helper) )
       end
 
       def attributes_for(method, field_helper)
