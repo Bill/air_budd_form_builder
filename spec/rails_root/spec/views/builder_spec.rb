@@ -165,7 +165,6 @@ describe 'builder' do
     
   end
 
-
   describe 'with no scaffold and no controls generation' do
     before(:each) do
       render :partial => 'article/show_no_controls_no_scaffold'
@@ -175,6 +174,30 @@ describe 'builder' do
     
     describe 'rendering an object with no errors' do
       it_should_behave_like 'no controls mode'
+    end
+  
+    describe 'rendering an object with errors' do
+      def article
+        super.title = nil # make the article invalid
+        super
+      end
+      it_should_behave_like 'no controls mode'
+      # it_should_behave_like 'no error'
+      # it_should_behave_like 'no controls mode without scaffold'
+    end
+    
+  end
+
+  describe 'with no controls generation and block given' do
+    before(:each) do
+      render :partial => 'article/show_no_controls_block_given'
+    end
+
+    it_should_behave_like 'always'
+    
+    describe 'rendering an object with no errors' do
+      it_should_behave_like 'no controls mode'
+
     end
   
     describe 'rendering an object with errors' do

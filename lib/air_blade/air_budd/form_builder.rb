@@ -265,11 +265,13 @@ module AirBlade
         @template.content_tag :label, value, html_options
       end
       
+      # Quack…Our callers (unlike folks expecting to be calling built-in Rails helpers)
+      # may pass a block. If present, that block is delegated to to render non-control content.
       def self.create_field_helper(field_helper)
         # see our alias_method_chain below
         src = <<-END
-          def #{field_helper}_with_buds(method, options, html_options = {})
-            field( #{field_helper.inspect}, method, options, html_options)
+          def #{field_helper}_with_buds(method, options, html_options = {}, &block)
+            field( #{field_helper.inspect}, method, options, html_options, &block)
           end
         END
         class_eval src, __FILE__, __LINE__
@@ -277,8 +279,8 @@ module AirBlade
 
       def self.create_short_field_helper(field_helper)
         src = <<-END
-          def #{field_helper}_with_buds(method, options, html_options = {})
-            short_field( #{field_helper.inspect}, method, options, html_options)
+          def #{field_helper}_with_buds(method, options, html_options = {}, &block)
+            short_field( #{field_helper.inspect}, method, options, html_options, &block)
           end
         END
         class_eval src, __FILE__, __LINE__
@@ -286,8 +288,8 @@ module AirBlade
 
       def self.create_collection_field_helper(field_helper)
         src = <<-END
-          def #{field_helper}_with_buds(method, choices, options, html_options = {})
-            collection_field( #{field_helper.inspect}, method, choices, options, html_options)
+          def #{field_helper}_with_buds(method, choices, options, html_options = {}, &block)
+            collection_field( #{field_helper.inspect}, method, choices, options, html_options, &block)
           end
         END
         class_eval src, __FILE__, __LINE__
