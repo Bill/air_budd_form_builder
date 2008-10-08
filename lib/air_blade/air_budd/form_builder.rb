@@ -344,8 +344,13 @@ module AirBlade
       def field( field_helper, method, options, html_options = {})
         opts = options.stringify_keys
         ActionView::Helpers::InstanceTag.new( @object.class.name.downcase, method, self, nil, options[:object]).send( :add_default_name_and_id, opts )
-        content = wrapper.value( field_helper,
-          @object.send( method), :id => opts['id'], :class => 'value' )
+        value = @object.send( method)
+        content = if block_given?
+          yield value, :id => opts['id'], :class => 'value'
+        else
+          wrapper.value( field_helper,
+            value, :id => opts['id'], :class => 'value' )
+        end
         wrapper.field( field_helper, 
           label_element(method, options, html_options) + content,
           attributes_for(method, field_helper) )
@@ -354,8 +359,13 @@ module AirBlade
       def short_field( field_helper, method, options, html_options = {})
         opts = options.stringify_keys
         ActionView::Helpers::InstanceTag.new( @object.class.name.downcase, method, self, nil, options[:object]).send( :add_default_name_and_id, opts )
-        content = wrapper.value( field_helper,
-          @object.send( method), :id => opts['id'], :class => 'value')
+        value = @object.send( method)
+        content = if block_given?
+          yield value, :id => opts['id'], :class => 'value'
+        else
+          wrapper.value( field_helper,
+            value, :id => opts['id'], :class => 'value')
+        end
         wrapper.field( field_helper, 
           content + label_element(method, options, html_options),
           attributes_for(method, field_helper) )
@@ -364,8 +374,13 @@ module AirBlade
       def collection_field( field_helper, method, choices, options, html_options = {})
         opts = options.stringify_keys
         ActionView::Helpers::InstanceTag.new( @object.class.name.downcase, method, self, nil, options[:object]).send( :add_default_name_and_id, opts )
-        content = wrapper.value( field_helper,
-          link_to( method, @object.send(method.to_sym) ), :id => opts['id'], :class => 'value')
+        value = @object.send( method)
+        content = if block_given?
+          yield value, :id => opts['id'], :class => 'value'
+        else
+          wrapper.value( field_helper,
+            link_to( method, value ), :id => opts['id'], :class => 'value')
+        end
         wrapper.field( field_helper, 
           label_element(method, options, html_options) + content,
           attributes_for(method, field_helper) )
