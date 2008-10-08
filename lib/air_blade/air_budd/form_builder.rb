@@ -10,8 +10,36 @@ module AirBlade
     # elides attributes
     # when you use this one, it's up to you go inject attributes into the containing element
     class EmptyWrapper
-      def initialize( *args, &proc) # I don't care what my args are
-        super()
+      def initialize( template)
+        @template = template
+      end
+      
+      # Guts copied from Rails 2.1.0 form_for. 
+      # The purpose of this method is to let us wrap the content in a div and
+      # to also make form tag optional
+      def object( controls, scaffold, is_remote, record_or_name_or_array, *args, &proc)
+        raise ArgumentError, "Missing block" unless block_given?
+
+        options = args.extract_options!
+
+        case record_or_name_or_array
+        when String, Symbol
+          object_name = record_or_name_or_array
+        when Array
+          object = record_or_name_or_array.last
+          object_name = ActionController::RecordIdentifier.singular_class_name(object)
+          @template.apply_form_for_options!(record_or_name_or_array, options)
+          args.unshift object
+        else
+          object = record_or_name_or_array
+          object_name = ActionController::RecordIdentifier.singular_class_name(object)
+          @template.apply_form_for_options!([object], options)
+          args.unshift object
+        end
+
+        wrapper_start( controls, scaffold, is_remote, options, object_name, &proc)
+        @template.fields_for(object_name, *(args << options), &proc)
+        wrapper_end( controls, scaffold, &proc)
       end
       def field( field_helper, content, attributes)
         content || '' # gotta turn nil into empty string or empty attribues cause exceptions
@@ -19,12 +47,25 @@ module AirBlade
       def value( field_helper, content, attributes)
         content || ''
       end
+      
+      protected
+      def wrapper_start( controls, scaffold, is_remote, options, object_name, &proc)
+        url, html = options.delete(:url), options.delete(:html)
+        if controls
+          if is_remote
+            @template.concat( @template.form_remote_tag(options), proc.binding) # see Rails prototype_helper.rb
+          else
+            @template.concat( @template.form_tag(url || {}, html || {}), proc.binding) # see Rails form_helper.rb
+          end
+        end
+      end
+
+      def wrapper_end( controls, scaffold, &proc)
+        @template.concat('</form>', proc.binding) if controls
+      end
     end
 
-    class Wrapper
-      def initialize( template)
-        @template = template
-      end
+    class Wrapper < EmptyWrapper
       def field( field_helper, content, attributes)
         @template.content_tag( attribute_tag_for( field_helper), content, attributes)
       end
@@ -45,6 +86,15 @@ module AirBlade
         else
           'span'
         end
+      end
+      protected
+      def wrapper_start( controls, scaffold, is_remote, options, object_name, &proc)
+        @template.concat("<div class='#{object_name}#{controls ? ' draft' : ' published' }'>", proc.binding)
+        super
+      end
+      def wrapper_end( controls, scaffold, &proc)
+        super
+        @template.concat('</div>', proc.binding)
       end
     end
 
